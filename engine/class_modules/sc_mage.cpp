@@ -3421,15 +3421,19 @@ struct frostbolt_t : public frost_mage_spell_t
       {
         trigger_icicle_gain( s, icicle );
       }
-      if ( s -> result == RESULT_CRIT && p() -> artifact.frozen_veins.rank() )
-      {
-        p() -> cooldowns.icy_veins -> adjust( -1000 *
-                                             p() -> artifact.frozen_veins.time_value() );
-      }
 
-      if ( s -> result == RESULT_CRIT && p() -> artifact.chain_reaction.rank() )
+      if ( s -> result == RESULT_CRIT )
       {
-        p() -> buffs.chain_reaction -> trigger();
+        if ( p() -> artifact.frozen_veins.rank() )
+        {
+          p() -> cooldowns.icy_veins
+              -> adjust( -1000 * p() -> artifact.frozen_veins.time_value() );
+        }
+
+        if ( p() -> artifact.chain_reaction.rank() )
+        {
+          p() -> buffs.chain_reaction -> trigger();
+        }
       }
     }
   }
@@ -3655,7 +3659,7 @@ struct ice_floes_t : public mage_spell_t
 };
 
 
-// Ice Lance Spell ==========================================================
+// Ice Lance Spell ============================================================
 
 struct ice_lance_t : public frost_mage_spell_t
 {
@@ -3696,12 +3700,14 @@ struct ice_lance_t : public frost_mage_spell_t
 
     return s -> result_total;
   }
+
   virtual void execute() override
   {
     // Ice Lance treats the target as frozen with FoF up
     frozen = ( p() -> buffs.fingers_of_frost -> up() != 0 );
 
     p() -> buffs.shatterlance -> up();
+    p() -> buffs.chain_reaction -> up();
 
     frost_mage_spell_t::execute();
 
@@ -3732,6 +3738,7 @@ struct ice_lance_t : public frost_mage_spell_t
     }
 
     p() -> buffs.fingers_of_frost -> decrement();
+    p() -> buffs.chain_reaction -> expire();
   }
 
   virtual void impact( action_state_t* s ) override
@@ -3764,7 +3771,8 @@ struct ice_lance_t : public frost_mage_spell_t
 
     if ( p() -> buffs.fingers_of_frost -> check() )
     {
-      am *= 1.0 + p() -> buffs.fingers_of_frost -> data().effectN( 2 ).percent();
+      am *= 1.0 + p() -> buffs.fingers_of_frost
+                      -> data().effectN( 2 ).percent();
     }
 
     if ( p() -> buffs.shatterlance -> check() )
@@ -3772,16 +3780,17 @@ struct ice_lance_t : public frost_mage_spell_t
       am *= 1.0 + shatterlance_effect;
     }
 
-    if ( p() -> buffs.chain_reaction -> up() )
+    if ( p() -> buffs.chain_reaction -> check() )
     {
-      am *= 1.0 + p() -> buffs.chain_reaction -> data().effectN( 1 ).percent();
+      am *= 1.0 + p() -> buffs.chain_reaction -> check() *
+                  p() -> buffs.chain_reaction -> data().effectN( 1 ).percent();
     }
     return am;
   }
 };
 
 
-// Ice Nova Spell ==========================================================
+// Ice Nova Spell =============================================================
 
 struct ice_nova_t : public frost_mage_spell_t
 {
@@ -5949,9 +5958,7 @@ void mage_t::create_buffs()
 
   // Artifact
   // Frost
-  //TODO: Remove hardcoded Stack cap once spelldata is fixed.
-  buffs.chain_reaction   = buff_creator_t( this, "chain_reaction", find_spell( 195418 ) )
-                                      .max_stack( 1.0 );
+  buffs.chain_reaction   = buff_creator_t( this, "chain_reaction", find_spell( 195418 ) );
   buffs.chilled_to_the_core = buff_creator_t( this, "chilled_to_the_core", find_spell( 195446 ) )
                                    .add_invalidate( CACHE_PLAYER_DAMAGE_MULTIPLIER );
 }
@@ -6879,7 +6886,7 @@ double mage_t::composite_player_multiplier( school_e school ) const
 
   return m;
 }
-// mage_t:: composite_mastery_value ============================================
+// mage_t:: composite_mastery_value ===========================================
 double mage_t::composite_mastery_value() const
 {
   double m = player_t::composite_mastery_value();
